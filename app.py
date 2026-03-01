@@ -1609,7 +1609,7 @@ def main():
                 st.warning(f"📍 **Titik Terpengaruh:** {', '.join(affected_points)}")
             
             # ========================================================================
-            # 🔥 FAULT PROPAGATION MAP DISPLAY (FIXED INLINE CSS)
+            # 🔥 FAULT PROPAGATION MAP DISPLAY (FIXED SINGLE-RENDER HTML)
             # ========================================================================
             st.divider()
             st.subheader("🗺️ Fault Propagation Map untuk Perbaikan")
@@ -1630,61 +1630,64 @@ def main():
                     if priority == "CRITICAL":
                         priority_icon = "🔴"
                         border_color = "#c0392b"
-                        bg_color = "#fef0f0"
+                        bg_color = "#fff0f0"
                     elif priority == "HIGH":
                         priority_icon = "🟠"
                         border_color = "#e67e22"
-                        bg_color = "#fdf5e6"
+                        bg_color = "#fff8f0"
                     elif priority == "MEDIUM":
                         priority_icon = "🟡"
                         border_color = "#f1c40f"
-                        bg_color = "#fdfbea"
+                        bg_color = "#fffdf0"
                     else:
                         priority_icon = "🟢"
                         border_color = "#27ae60"
-                        bg_color = "#eafaf1"
+                        bg_color = "#f0fff4"
                     
-                    with st.container():
-                        # --- 1. Header Card ---
-                        st.markdown(f"""
-                        <div style="background-color: {bg_color}; border-left: 6px solid {border_color}; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 12px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
-                                <h4 style="margin: 0; color: #1E3A5F; font-size: 1.15em;">{priority_icon} Scenario {idx}: {prop['root_cause']}</h4>
-                                <div style="font-size: 0.85em; font-weight: 600;">
-                                    <span style="background-color: {border_color}; color: white; padding: 5px 12px; border-radius: 12px; margin-right: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Priority: {priority}</span>
-                                    <span style="background-color: #1E3A5F; color: white; padding: 5px 12px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Timeline: {prop['timeline']}</span>
-                                </div>
+                    # 1. Kumpulkan seluruh HTML dalam SATU variabel string
+                    html_content = f"""
+                    <div style="background-color: {bg_color}; border-left: 6px solid {border_color}; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); color: #2c3e50;">
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 12px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                            <h4 style="margin: 0; color: #1E3A5F; font-size: 1.15em;">{priority_icon} Scenario {idx}: {prop['root_cause']}</h4>
+                            <div style="font-size: 0.85em; font-weight: 600;">
+                                <span style="background-color: {border_color}; color: white; padding: 5px 12px; border-radius: 12px; margin-right: 8px;">Priority: {priority}</span>
+                                <span style="background-color: #1E3A5F; color: white; padding: 5px 12px; border-radius: 12px;">Timeline: {prop['timeline']}</span>
                             </div>
-                            
-                            <div style="font-weight: 600; color: #555; margin-bottom: 10px;">🔗 Fault Chain:</div>
-                            <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 12px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 20px;">
-                        """, unsafe_allow_html=True)
+                        </div>
                         
-                        # --- 2. Rantai Fault (Nodes & Arrows) ---
-                        n_nodes = len(prop["fault_chain"])
-                        chain_html = ""
-                        for i, fault in enumerate(prop["fault_chain"]):
-                            # Node Kotak Biru
-                            chain_html += f'<div style="background-color: #1E3A5F; color: white; padding: 10px 18px; border-radius: 6px; font-size: 0.9em; font-weight: 600; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">{fault}</div>'
-                            # Panah
-                            if i < n_nodes - 1:
-                                chain_html += '<div style="color: #95a5a6; font-weight: bold; font-size: 1.3em;">→</div>'
+                        <div style="font-weight: 600; color: #444; margin-bottom: 10px; font-size: 0.95em;">🔗 Fault Chain:</div>
+                        <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px; background: rgba(255,255,255,0.6); padding: 15px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05); margin-bottom: 20px;">
+                    """
+                    
+                    # Tambahkan node Fault Chain ke dalam string HTML
+                    n_nodes = len(prop["fault_chain"])
+                    for i, fault in enumerate(prop["fault_chain"]):
+                        html_content += f'<div style="background-color: #1E3A5F; color: white; padding: 8px 14px; border-radius: 6px; font-size: 0.85em; font-weight: 600; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">{fault}</div>'
+                        if i < n_nodes - 1:
+                            html_content += '<div style="color: #7f8c8d; font-weight: bold; font-size: 1.2em;">→</div>'
+                    
+                    html_content += """
+                        </div>
                         
-                        st.markdown(chain_html + "</div>", unsafe_allow_html=True)
-                        
-                        # --- 3. Repair Actions ---
-                        st.markdown('<div style="font-weight: 600; color: #555; margin-bottom: 10px;">🔧 Repair Actions:</div>', unsafe_allow_html=True)
-                        
-                        actions_html = '<div style="background: #fff; padding: 15px 20px; border-radius: 8px; border: 1px solid #eee;">'
-                        for action in prop["repair_actions"]:
-                            clean_action = action.replace("✅ ", "").strip()
-                            # Item List Perbaikan
-                            actions_html += f'<div style="padding: 8px 0; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; font-size: 0.95em; color: #2c3e50;"><span style="margin-right: 12px; font-size: 1.1em;">✅</span>{clean_action}</div>'
-                        
-                        # Tutup tag div dari actions container dan main card container
-                        actions_html += '</div></div>' 
-                        
-                        st.markdown(actions_html, unsafe_allow_html=True)
+                        <div style="font-weight: 600; color: #444; margin-bottom: 10px; font-size: 0.95em;">🔧 Repair Actions:</div>
+                        <div style="background: rgba(255,255,255,0.6); padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05);">
+                    """
+                    
+                    # Tambahkan List Repair Action ke dalam string HTML
+                    for action in prop["repair_actions"]:
+                        clean_action = action.replace("✅ ", "").strip()
+                        html_content += f'<div style="padding: 8px 0; border-bottom: 1px dashed rgba(0,0,0,0.1); display: flex; align-items: flex-start; font-size: 0.9em; color: #2c3e50;"><span style="margin-right: 10px; font-size: 1.1em; line-height: 1.2;">✅</span><span style="line-height: 1.4;">{clean_action}</span></div>'
+                    
+                    # Tutup semua div utama
+                    html_content += """
+                        </div>
+                    </div>
+                    """
+                    
+                    # 2. Render SEMUANYA sekaligus dalam satu kali pemanggilan st.markdown
+                    st.markdown(html_content, unsafe_allow_html=True)
+                    
             else:
                 st.info("ℹ️ Tidak ada fault propagation map yang dihasilkan. Semua domain dalam kondisi normal.")
 
