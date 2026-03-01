@@ -726,15 +726,20 @@ def diagnose_hydraulic_single_point(hydraulic_calc, design_params, fluid_props, 
     return result
 
 # ============================================================================
-# 🔥 FAULT PROPAGATION MAP GENERATOR
+# 🔥 FAULT PROPAGATION MAP GENERATOR (FIXED KeyError)
 # ============================================================================
-def generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_data=None, 
-                                    pump_standard="ISO 13709"):
+def generate_fault_propagation_map(mech_result, hyd_result, elec_result, 
+                                    temp_data=None, pump_standard="ISO 10816-3/7"):
     """
-    Generate fault propagation map data structure with standard-specific recommendations
+    Generate fault propagation map data structure dengan repair action untuk perbaikan
     """
     propagation_data = []
-    standard_note = f"({pump_standard})"
+    
+    # Get temp_limits from PUMP_STANDARDS
+    if pump_standard in PUMP_STANDARDS:
+        temp_limits = PUMP_STANDARDS[pump_standard]["temp_limits"]
+    else:
+        temp_limits = BEARING_TEMP_LIMITS  # Fallback ke original
     
     # === PATTERN 1: Electrical Origin ===
     if elec_result.get("fault_type") == "voltage":
@@ -743,10 +748,10 @@ def generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_da
                 "root_cause": "⚡ Electrical Supply Issue",
                 "fault_chain": ["Voltage Unbalance", "Torque Pulsation", "Mechanical Stress", "Misalignment/Looseness"],
                 "repair_actions": [
-                    "Balance 3-phase supply di MCC",
-                    "Check connection & terminal",
-                    "Verify transformer tap setting",
-                    "Laser alignment setelah electrical fix"
+                    "✅ Balance 3-phase supply di MCC",
+                    "✅ Check connection & terminal",
+                    "✅ Verify transformer tap setting",
+                    "✅ Laser alignment setelah electrical fix"
                 ],
                 "priority": "HIGH",
                 "timeline": "1-3 hari"
@@ -759,11 +764,11 @@ def generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_da
                 "root_cause": "💧 Cavitation Damage",
                 "fault_chain": ["Low NPSH Margin", "Bubble Collapse", "Impeller Erosion", "Unbalance", "Bearing Wear"],
                 "repair_actions": [
-                    "Increase suction pressure",
-                    "Clean strainer/filter",
-                    "Check valve position",
-                    "Replace damaged impeller",
-                    "Replace bearing if worn"
+                    "✅ Increase suction pressure",
+                    "✅ Clean strainer/filter",
+                    "✅ Check valve position",
+                    "✅ Replace damaged impeller",
+                    "✅ Replace bearing if worn"
                 ],
                 "priority": "CRITICAL",
                 "timeline": "Immediate - 1 minggu"
@@ -776,30 +781,33 @@ def generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_da
                 "root_cause": "🔧 Mechanical Fault",
                 "fault_chain": ["Unbalance/Misalignment/Bearing", "Increased Friction", "Efficiency Drop", "Motor Overload"],
                 "repair_actions": [
-                    "Rotor balancing / Laser alignment",
-                    "Bearing replacement",
-                    "Check internal clearance",
-                    "Verify lubrication"
+                    "✅ Rotor balancing / Laser alignment",
+                    "✅ Bearing replacement",
+                    "✅ Check internal clearance",
+                    "✅ Verify lubrication"
                 ],
                 "priority": "HIGH",
                 "timeline": "1-2 minggu"
             })
     
-    # === PATTERN 4: Bearing Temperature ===
+    # === PATTERN 4: Bearing Temperature (FIXED KEY ACCESS) ===
     if temp_data:
-        temp_limits = PUMP_STANDARDS.get(pump_standard, PUMP_STANDARDS["ISO 13709"])["temp_limits"]
-        high_temps = [k for k, v in temp_data.items() if v and v > temp_limits["warning_min"]]
+        # Gunakan "warning_max" sebagai threshold (bukan "warning_min" yang tidak ada)
+        warning_threshold = temp_limits.get("warning_max", 80)  # Default 80°C
+        critical_threshold = temp_limits.get("critical_min", 90)  # Default 90°C
+        
+        high_temps = [k for k, v in temp_data.items() if v and v > warning_threshold]
         if high_temps:
             propagation_data.append({
                 "root_cause": "🌡️ Bearing Overheating",
                 "fault_chain": ["Poor Lubrication", "Increased Friction", "Temperature Rise", "Bearing Damage"],
                 "repair_actions": [
-                    "Check lubrication type & quantity",
-                    "Take oil sample analysis",
-                    "Verify bearing clearance",
-                    "Plan bearing replacement"
+                    "✅ Check lubrication type & quantity",
+                    "✅ Take oil sample analysis",
+                    "✅ Verify bearing clearance",
+                    "✅ Plan bearing replacement"
                 ],
-                "priority": "HIGH" if any(temp_data.get(k, 0) > temp_limits["critical_min"] for k in high_temps) else "MEDIUM",
+                "priority": "HIGH" if any(temp_data.get(k, 0) > critical_threshold for k in high_temps) else "MEDIUM",
                 "timeline": "1-7 hari"
             })
     
@@ -811,10 +819,10 @@ def generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_da
                     "root_cause": "🔍 Localized Bearing Fault",
                     "fault_chain": ["Uneven Load", "Localized Heating", "Bearing Damage"],
                     "repair_actions": [
-                        "Check bearing housing alignment",
-                        "Verify mounting procedure",
-                        "Inspect bearing raceway",
-                        "Replace bearing if damaged"
+                        "✅ Check bearing housing alignment",
+                        "✅ Verify mounting procedure",
+                        "✅ Inspect bearing raceway",
+                        "✅ Replace bearing if damaged"
                     ],
                     "priority": "MEDIUM",
                     "timeline": "1-4 minggu"
@@ -830,9 +838,9 @@ def generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_da
                 "root_cause": "❓ Individual Domain Fault",
                 "fault_chain": ["Single domain fault detected", "No strong cross-domain correlation"],
                 "repair_actions": [
-                    "Address individual domain fault per recommendation",
-                    "Continue monitoring",
-                    "Collect more data for trend analysis"
+                    "✅ Address individual domain fault per recommendation",
+                    "✅ Continue monitoring",
+                    "✅ Collect more data for trend analysis"
                 ],
                 "priority": "MEDIUM",
                 "timeline": "Routine maintenance"
