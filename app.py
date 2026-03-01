@@ -1411,8 +1411,8 @@ def main():
             if affected_points and affected_points != ["Tidak Ada (Normal)"]:
                 st.warning(f"📍 **Titik Terpengaruh:** {', '.join(affected_points)}")
             
-                        # ========================================================================
-            # 🔥 FAULT PROPAGATION MAP DISPLAY (FIXED - HTML RENDERING)
+            # ========================================================================
+            # 🔥 FAULT PROPAGATION MAP DISPLAY (FIXED - NATIVE COMPONENTS)
             # ========================================================================
             st.divider()
             st.subheader("🗺️ Fault Propagation Map untuk Perbaikan")
@@ -1425,179 +1425,63 @@ def main():
                 temp_data
             )
             
-            # CSS Styles - Inject ONCE
-            st.markdown("""
-            <style>
-                .prop-container {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    width: 100%;
-                    margin-bottom: 20px;
-                }
-                .prop-card {
-                    background-color: #ffffff;
-                    padding: 25px;
-                    border-radius: 12px;
-                    border-left: 8px solid #ccc;
-                    margin: 15px 0;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                    width: 95%;
-                    max-width: 1000px;
-                }
-                .prop-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 20px;
-                    flex-wrap: wrap;
-                    border-bottom: 1px solid #eee;
-                    padding-bottom: 15px;
-                }
-                .prop-title {
-                    font-size: 1.2em;
-                    font-weight: 700;
-                    color: #1E3A5F;
-                    margin: 0;
-                }
-                .prop-badges {
-                    display: flex;
-                    gap: 10px;
-                    flex-wrap: wrap;
-                }
-                .badge {
-                    padding: 6px 12px;
-                    border-radius: 20px;
-                    font-size: 0.85em;
-                    font-weight: 600;
-                    color: white;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }
-                .fault-chain-container {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    flex-wrap: wrap;
-                    gap: 10px;
-                    margin: 20px 0;
-                    background: #f8f9fa;
-                    padding: 20px;
-                    border-radius: 8px;
-                    border: 1px solid #e0e0e0;
-                }
-                .fault-node {
-                    background-color: #1E3A5F;
-                    color: white;
-                    padding: 12px 18px;
-                    border-radius: 8px;
-                    text-align: center;
-                    font-size: 0.9em;
-                    font-weight: 600;
-                    min-width: 130px;
-                    flex: 1 1 130px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                    word-wrap: break-word;
-                }
-                .fault-arrow {
-                    color: #95a5a6;
-                    font-weight: bold;
-                    font-size: 1.5em;
-                    flex: 0 0 auto;
-                }
-                .repair-section {
-                    margin-top: 20px;
-                }
-                .repair-list {
-                    list-style: none;
-                    padding: 0;
-                    margin: 10px 0 0 0;
-                    background: #f8f9fa;
-                    padding: 15px 20px;
-                    border-radius: 8px;
-                    border: 1px solid #e0e0e0;
-                }
-                .repair-item {
-                    padding: 8px 0;
-                    border-bottom: 1px solid #e0e0e0;
-                    font-size: 0.95em;
-                    color: #2c3e50;
-                    display: flex;
-                    align-items: center;
-                }
-                .repair-item:last-child {
-                    border-bottom: none;
-                }
-                .repair-icon {
-                    margin-right: 10px;
-                    font-size: 1.1em;
-                }
-                .section-label {
-                    font-weight: 600;
-                    color: #555;
-                    margin-bottom: 10px;
-                    text-align: center;
-                }
-            </style>
-            """, unsafe_allow_html=True)
-            
-            # Render Propagation Map
             if propagation_map:
                 for idx, prop in enumerate(propagation_map, 1):
-                    priority_colors = {
-                        "CRITICAL": ("🔴", "#c0392b"),
-                        "HIGH": ("🟠", "#e67e22"),
-                        "MEDIUM": ("🟡", "#f1c40f"),
-                        "LOW": ("🟢", "#27ae60")
-                    }
-                    priority_icon, priority_color = priority_colors.get(prop["priority"], ("⚪", "#95a5a6"))
+                    # Tentukan warna box berdasarkan priority
+                    priority = prop["priority"]
+                    if priority == "CRITICAL":
+                        box_color = "error"
+                        priority_icon = "🔴"
+                    elif priority == "HIGH":
+                        box_color = "warning"
+                        priority_icon = "🟠"
+                    elif priority == "MEDIUM":
+                        box_color = "info"
+                        priority_icon = "🟡"
+                    else:
+                        box_color = "success"
+                        priority_icon = "🟢"
                     
-                    # Escape all dynamic content for HTML safety
-                    import html
-                    root_cause_safe = html.escape(str(prop["root_cause"]))
-                    priority_safe = html.escape(str(prop["priority"]))
-                    timeline_safe = html.escape(str(prop["timeline"]))
+                    # Gunakan Container untuk membuat efek Kartu
+                    with st.container():
+                        # Header Kartu
+                        col_h1, col_h2 = st.columns([3, 1])
+                        with col_h1:
+                            st.markdown(f"**{priority_icon} Scenario {idx}: {prop['root_cause']}**")
+                        with col_h2:
+                            st.markdown(f"`Priority: {priority}` | `Timeline: {prop['timeline']}`")
+                        
+                        st.markdown("---") # Garis pemisah
+                        
+                        # Fault Chain (Menggunakan Columns agar sejajar)
+                        st.markdown("**🔗 Fault Chain:**")
+                        n_nodes = len(prop["fault_chain"])
+                        chain_cols = st.columns(n_nodes)
+                        for i, fault in enumerate(prop["fault_chain"]):
+                            with chain_cols[i]:
+                                # Tampilkan node fault dengan box sederhana
+                                st.markdown(
+                                    f"""
+                                    <div style="background-color:#f0f2f6; padding:10px; border-radius:5px; 
+                                    text-align:center; border:1px solid #ddd; height:100%;">
+                                    <b>{fault}</b>
+                                    </div>
+                                    """, 
+                                    unsafe_allow_html=True
+                                )
+                                # Tambah panah jika bukan node terakhir
+                                if i < n_nodes - 1:
+                                    st.markdown("<div style='text-align:center; margin-top:-5px; margin-bottom:5px;'>⬇️</div>", unsafe_allow_html=True)
+                        
+                        st.markdown("---") # Garis pemisah
+                        
+                        # Repair Actions
+                        st.markdown("**🔧 Repair Actions:**")
+                        for action in prop["repair_actions"]:
+                            clean_action = action.replace("✅ ", "").strip()
+                            st.markdown(f"✅ {clean_action}")
                     
-                    # Build Fault Chain HTML
-                    chain_html = ""
-                    for i, fault in enumerate(prop["fault_chain"]):
-                        fault_safe = html.escape(str(fault))
-                        chain_html += f'<div class="fault-node">{fault_safe}</div>'
-                        if i < len(prop["fault_chain"]) - 1:
-                            chain_html += '<div class="fault-arrow">→</div>'
-                    
-                    # Build Repair Actions HTML
-                    actions_html = ""
-                    for action in prop["repair_actions"]:
-                        clean_action = action.replace("✅ ", "").strip()
-                        action_safe = html.escape(str(clean_action))
-                        actions_html += f'<li class="repair-item"><span class="repair-icon">✅</span>{action_safe}</li>'
-                    
-                    # Complete HTML Card
-                    html_card = f"""
-                    <div class="prop-container">
-                        <div class="prop-card" style="border-left-color: {priority_color};">
-                            <div class="prop-header">
-                                <h4 class="prop-title">{priority_icon} Scenario {idx}: {root_cause_safe}</h4>
-                                <div class="prop-badges">
-                                    <span class="badge" style="background-color: {priority_color};">Priority: {priority_safe}</span>
-                                    <span class="badge" style="background-color: #1E3A5F;">Timeline: {timeline_safe}</span>
-                                </div>
-                            </div>
-                            
-                            <div class="section-label">🔗 Fault Chain:</div>
-                            <div class="fault-chain-container">
-                                {chain_html}
-                            </div>
-                            
-                            <div class="section-label">🔧 Repair Actions:</div>
-                            <ul class="repair-list">
-                                {actions_html}
-                            </ul>
-                        </div>
-                    </div>
-                    """
-                    
-                    st.markdown(html_card, unsafe_allow_html=True)
+                    st.markdown("<br>", unsafe_allow_html=True) # Jarak antar kartu
             else:
                 st.info("ℹ️ Tidak ada fault propagation map yang dihasilkan. Semua domain dalam kondisi normal.")
 
