@@ -1609,7 +1609,7 @@ def main():
                 st.warning(f"📍 **Titik Terpengaruh:** {', '.join(affected_points)}")
             
             # ========================================================================
-            # 🔥 FAULT PROPAGATION MAP DISPLAY (FIXED SINGLE-RENDER HTML)
+            # 🔥 FAULT PROPAGATION MAP DISPLAY (FIXED RAW HTML PARSING)
             # ========================================================================
             st.divider()
             st.subheader("🗺️ Fault Propagation Map untuk Perbaikan")
@@ -1628,65 +1628,46 @@ def main():
                     # Tentukan warna indikator berdasarkan priority
                     priority = prop["priority"]
                     if priority == "CRITICAL":
-                        priority_icon = "🔴"
-                        border_color = "#c0392b"
-                        bg_color = "#fff0f0"
+                        priority_icon, border_color, bg_color = "🔴", "#c0392b", "#fff0f0"
                     elif priority == "HIGH":
-                        priority_icon = "🟠"
-                        border_color = "#e67e22"
-                        bg_color = "#fff8f0"
+                        priority_icon, border_color, bg_color = "🟠", "#e67e22", "#fff8f0"
                     elif priority == "MEDIUM":
-                        priority_icon = "🟡"
-                        border_color = "#f1c40f"
-                        bg_color = "#fffdf0"
+                        priority_icon, border_color, bg_color = "🟡", "#f1c40f", "#fffdf0"
                     else:
-                        priority_icon = "🟢"
-                        border_color = "#27ae60"
-                        bg_color = "#f0fff4"
+                        priority_icon, border_color, bg_color = "🟢", "#27ae60", "#f0fff4"
                     
-                    # 1. Kumpulkan seluruh HTML dalam SATU variabel string
-                    html_content = f"""
-                    <div style="background-color: {bg_color}; border-left: 6px solid {border_color}; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); color: #2c3e50;">
-                        
-                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 12px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
-                            <h4 style="margin: 0; color: #1E3A5F; font-size: 1.15em;">{priority_icon} Scenario {idx}: {prop['root_cause']}</h4>
-                            <div style="font-size: 0.85em; font-weight: 600;">
-                                <span style="background-color: {border_color}; color: white; padding: 5px 12px; border-radius: 12px; margin-right: 8px;">Priority: {priority}</span>
-                                <span style="background-color: #1E3A5F; color: white; padding: 5px 12px; border-radius: 12px;">Timeline: {prop['timeline']}</span>
-                            </div>
-                        </div>
-                        
-                        <div style="font-weight: 600; color: #444; margin-bottom: 10px; font-size: 0.95em;">🔗 Fault Chain:</div>
-                        <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px; background: rgba(255,255,255,0.6); padding: 15px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05); margin-bottom: 20px;">
-                    """
+                    # Menyusun HTML tanpa spasi indentasi agar TIDAK DIBACA SEBAGAI CODE BLOCK
+                    html_str = f"<div style='background-color: {bg_color}; border-left: 6px solid {border_color}; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); color: #2c3e50;'>"
                     
-                    # Tambahkan node Fault Chain ke dalam string HTML
+                    # Header Card
+                    html_str += f"<div style='display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 12px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;'>"
+                    html_str += f"<h4 style='margin: 0; color: #1E3A5F; font-size: 1.15em;'>{priority_icon} Scenario {idx}: {prop['root_cause']}</h4>"
+                    html_str += f"<div style='font-size: 0.85em; font-weight: 600;'><span style='background-color: {border_color}; color: white; padding: 5px 12px; border-radius: 12px; margin-right: 8px;'>Priority: {priority}</span><span style='background-color: #1E3A5F; color: white; padding: 5px 12px; border-radius: 12px;'>Timeline: {prop['timeline']}</span></div></div>"
+                    
+                    # Fault Chain Section
+                    html_str += "<div style='font-weight: 600; color: #444; margin-bottom: 10px; font-size: 0.95em;'>🔗 Fault Chain:</div>"
+                    html_str += "<div style='display: flex; align-items: center; flex-wrap: wrap; gap: 10px; background: rgba(255,255,255,0.6); padding: 15px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05); margin-bottom: 20px;'>"
+                    
                     n_nodes = len(prop["fault_chain"])
                     for i, fault in enumerate(prop["fault_chain"]):
-                        html_content += f'<div style="background-color: #1E3A5F; color: white; padding: 8px 14px; border-radius: 6px; font-size: 0.85em; font-weight: 600; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">{fault}</div>'
+                        html_str += f"<div style='background-color: #1E3A5F; color: white; padding: 8px 14px; border-radius: 6px; font-size: 0.85em; font-weight: 600; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2);'>{fault}</div>"
                         if i < n_nodes - 1:
-                            html_content += '<div style="color: #7f8c8d; font-weight: bold; font-size: 1.2em;">→</div>'
+                            html_str += "<div style='color: #7f8c8d; font-weight: bold; font-size: 1.2em;'>→</div>"
                     
-                    html_content += """
-                        </div>
-                        
-                        <div style="font-weight: 600; color: #444; margin-bottom: 10px; font-size: 0.95em;">🔧 Repair Actions:</div>
-                        <div style="background: rgba(255,255,255,0.6); padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05);">
-                    """
+                    html_str += "</div>"
                     
-                    # Tambahkan List Repair Action ke dalam string HTML
+                    # Repair Actions Section
+                    html_str += "<div style='font-weight: 600; color: #444; margin-bottom: 10px; font-size: 0.95em;'>🔧 Repair Actions:</div>"
+                    html_str += "<div style='background: rgba(255,255,255,0.6); padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.05);'>"
+                    
                     for action in prop["repair_actions"]:
                         clean_action = action.replace("✅ ", "").strip()
-                        html_content += f'<div style="padding: 8px 0; border-bottom: 1px dashed rgba(0,0,0,0.1); display: flex; align-items: flex-start; font-size: 0.9em; color: #2c3e50;"><span style="margin-right: 10px; font-size: 1.1em; line-height: 1.2;">✅</span><span style="line-height: 1.4;">{clean_action}</span></div>'
+                        html_str += f"<div style='padding: 8px 0; border-bottom: 1px dashed rgba(0,0,0,0.1); display: flex; align-items: flex-start; font-size: 0.9em; color: #2c3e50;'><span style='margin-right: 10px; font-size: 1.1em; line-height: 1.2;'>✅</span><span style='line-height: 1.4;'>{clean_action}</span></div>"
                     
-                    # Tutup semua div utama
-                    html_content += """
-                        </div>
-                    </div>
-                    """
+                    html_str += "</div></div>"
                     
-                    # 2. Render SEMUANYA sekaligus dalam satu kali pemanggilan st.markdown
-                    st.markdown(html_content, unsafe_allow_html=True)
+                    # Render final string
+                    st.markdown(html_str, unsafe_allow_html=True)
                     
             else:
                 st.info("ℹ️ Tidak ada fault propagation map yang dihasilkan. Semua domain dalam kondisi normal.")
