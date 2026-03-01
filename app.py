@@ -1412,7 +1412,7 @@ def main():
                 st.warning(f"📍 **Titik Terpengaruh:** {', '.join(affected_points)}")
             
                         # ========================================================================
-            # 🔥 FAULT PROPAGATION MAP DISPLAY (FIXED HTML RENDERING)
+            # 🔥 FAULT PROPAGATION MAP DISPLAY (FIXED - HTML RENDERING)
             # ========================================================================
             st.divider()
             st.subheader("🗺️ Fault Propagation Map untuk Perbaikan")
@@ -1425,7 +1425,7 @@ def main():
                 temp_data
             )
             
-            # CSS Styles - Inject ONCE outside the loop
+            # CSS Styles - Inject ONCE
             st.markdown("""
             <style>
                 .prop-container {
@@ -1551,11 +1551,16 @@ def main():
                     }
                     priority_icon, priority_color = priority_colors.get(prop["priority"], ("⚪", "#95a5a6"))
                     
+                    # Escape all dynamic content for HTML safety
+                    import html
+                    root_cause_safe = html.escape(str(prop["root_cause"]))
+                    priority_safe = html.escape(str(prop["priority"]))
+                    timeline_safe = html.escape(str(prop["timeline"]))
+                    
                     # Build Fault Chain HTML
                     chain_html = ""
                     for i, fault in enumerate(prop["fault_chain"]):
-                        # Escape special characters in fault text
-                        fault_safe = fault.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        fault_safe = html.escape(str(fault))
                         chain_html += f'<div class="fault-node">{fault_safe}</div>'
                         if i < len(prop["fault_chain"]) - 1:
                             chain_html += '<div class="fault-arrow">→</div>'
@@ -1563,23 +1568,19 @@ def main():
                     # Build Repair Actions HTML
                     actions_html = ""
                     for action in prop["repair_actions"]:
-                        # Clean action text and escape special characters
                         clean_action = action.replace("✅ ", "").strip()
-                        action_safe = clean_action.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        action_safe = html.escape(str(clean_action))
                         actions_html += f'<li class="repair-item"><span class="repair-icon">✅</span>{action_safe}</li>'
                     
-                    # Safe root cause text
-                    root_cause_safe = prop["root_cause"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                    
-                    # Render Card
-                    st.markdown(f"""
+                    # Complete HTML Card
+                    html_card = f"""
                     <div class="prop-container">
                         <div class="prop-card" style="border-left-color: {priority_color};">
                             <div class="prop-header">
                                 <h4 class="prop-title">{priority_icon} Scenario {idx}: {root_cause_safe}</h4>
                                 <div class="prop-badges">
-                                    <span class="badge" style="background-color: {priority_color};">Priority: {prop["priority"]}</span>
-                                    <span class="badge" style="background-color: #1E3A5F;">Timeline: {prop["timeline"]}</span>
+                                    <span class="badge" style="background-color: {priority_color};">Priority: {priority_safe}</span>
+                                    <span class="badge" style="background-color: #1E3A5F;">Timeline: {timeline_safe}</span>
                                 </div>
                             </div>
                             
@@ -1594,7 +1595,9 @@ def main():
                             </ul>
                         </div>
                     </div>
-                    """, unsafe_allow_html=True)
+                    """
+                    
+                    st.markdown(html_card, unsafe_allow_html=True)
             else:
                 st.info("ℹ️ Tidak ada fault propagation map yang dihasilkan. Semua domain dalam kondisi normal.")
 
