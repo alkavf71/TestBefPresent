@@ -1609,7 +1609,7 @@ def main():
                 st.warning(f"📍 **Titik Terpengaruh:** {', '.join(affected_points)}")
             
             # ========================================================================
-            # 🔥 FAULT PROPAGATION MAP DISPLAY
+            # 🔥 FAULT PROPAGATION MAP DISPLAY (FIXED INLINE CSS)
             # ========================================================================
             st.divider()
             st.subheader("🗺️ Fault Propagation Map untuk Perbaikan")
@@ -1623,155 +1623,70 @@ def main():
                 pump_standard
             )
             
-            # CSS Styles for Better Alignment (Centered & Professional)
-            st.markdown("""
-            <style>
-            .prop-container {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                width: 100%;
-            }
-            .prop-card {
-                background-color: #ffffff;
-                padding: 25px;
-                border-radius: 12px;
-                border-left: 8px solid #ccc;
-                margin: 20px 0;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                width: 90%;
-                max-width: 1000px;
-            }
-            .prop-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 20px;
-                flex-wrap: wrap;
-                border-bottom: 1px solid #eee;
-                padding-bottom: 15px;
-            }
-            .prop-title {
-                font-size: 1.2em;
-                font-weight: 700;
-                color: #1E3A5F;
-                margin: 0;
-            }
-            .prop-badges {
-                display: flex;
-                gap: 10px;
-            }
-            .badge {
-                padding: 6px 12px;
-                border-radius: 20px;
-                font-size: 0.85em;
-                font-weight: 600;
-                color: white;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            .fault-chain-container {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-wrap: wrap;
-                gap: 15px;
-                margin: 20px 0;
-                background: #f8f9fa;
-                padding: 20px;
-                border-radius: 8px;
-                border: 1px solid #e0e0e0;
-            }
-            .fault-node {
-                background-color: #1E3A5F;
-                color: white;
-                padding: 12px 20px;
-                border-radius: 8px;
-                text-align: center;
-                font-size: 0.95em;
-                font-weight: 600;
-                min-width: 140px;
-                flex: 1 1 140px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            }
-            .fault-arrow {
-                color: #95a5a6;
-                font-weight: bold;
-                font-size: 1.5em;
-                flex: 0 0 auto;
-            }
-            .repair-list {
-                list-style: none;
-                padding: 0;
-                margin: 20px 0 0 0;
-                background: #f8f9fa;
-                padding: 20px;
-                border-radius: 8px;
-                border: 1px solid #e0e0e0;
-            }
-            .repair-item {
-                padding: 10px 0;
-                border-bottom: 1px solid #e0e0e0;
-                font-size: 1em;
-                color: #2c3e50;
-                display: flex;
-                align-items: center;
-            }
-            .repair-item:last-child {
-                border-bottom: none;
-            }
-            .repair-icon {
-                margin-right: 12px;
-                font-size: 1.2em;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-            
-            # Render Propagation Map with Centered Layout
-            for idx, prop in enumerate(propagation_map, 1):
-                priority_colors = {
-                    "CRITICAL": ("🔴", "#c0392b"),
-                    "HIGH": ("🟠", "#e67e22"),
-                    "MEDIUM": ("🟡", "#f1c40f"),
-                    "LOW": ("🟢", "#27ae60")
-                }
-                priority_icon, priority_color = priority_colors.get(prop["priority"], ("⚪", "#95a5a6"))
-                
-                # Build Fault Chain HTML (Centered)
-                chain_html = ""
-                for i, fault in enumerate(prop["fault_chain"]):
-                    chain_html += f'<div class="fault-node">{fault}</div>'
-                    if i < len(prop["fault_chain"]) - 1:
-                        chain_html += '<div class="fault-arrow">→</div>'
-                
-                # Build Repair Actions HTML
-                actions_html = ""
-                for action in prop["repair_actions"]:
-                    clean_action = action.replace("✅ ", "").strip()
-                    actions_html += f'<li class="repair-item"><span class="repair-icon">✅</span>{clean_action}</li>'
-                
-                st.markdown(f"""
-                <div class="prop-container">
-                    <div class="prop-card" style="border-left-color: {priority_color};">
-                        <div class="prop-header">
-                            <h4 class="prop-title">{priority_icon} Scenario {idx}: {prop["root_cause"]}</h4>
-                            <div class="prop-badges">
-                                <span class="badge" style="background-color: {priority_color};">Priority: {prop["priority"]}</span>
-                                <span class="badge" style="background-color: #1E3A5F;">Timeline: {prop["timeline"]}</span>
+            if propagation_map:
+                for idx, prop in enumerate(propagation_map, 1):
+                    # Tentukan warna indikator berdasarkan priority
+                    priority = prop["priority"]
+                    if priority == "CRITICAL":
+                        priority_icon = "🔴"
+                        border_color = "#c0392b"
+                        bg_color = "#fef0f0"
+                    elif priority == "HIGH":
+                        priority_icon = "🟠"
+                        border_color = "#e67e22"
+                        bg_color = "#fdf5e6"
+                    elif priority == "MEDIUM":
+                        priority_icon = "🟡"
+                        border_color = "#f1c40f"
+                        bg_color = "#fdfbea"
+                    else:
+                        priority_icon = "🟢"
+                        border_color = "#27ae60"
+                        bg_color = "#eafaf1"
+                    
+                    with st.container():
+                        # --- 1. Header Card ---
+                        st.markdown(f"""
+                        <div style="background-color: {bg_color}; border-left: 6px solid {border_color}; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 12px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                                <h4 style="margin: 0; color: #1E3A5F; font-size: 1.15em;">{priority_icon} Scenario {idx}: {prop['root_cause']}</h4>
+                                <div style="font-size: 0.85em; font-weight: 600;">
+                                    <span style="background-color: {border_color}; color: white; padding: 5px 12px; border-radius: 12px; margin-right: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Priority: {priority}</span>
+                                    <span style="background-color: #1E3A5F; color: white; padding: 5px 12px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">Timeline: {prop['timeline']}</span>
+                                </div>
                             </div>
-                        </div>
+                            
+                            <div style="font-weight: 600; color: #555; margin-bottom: 10px;">🔗 Fault Chain:</div>
+                            <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 12px; background: #fff; padding: 15px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 20px;">
+                        """, unsafe_allow_html=True)
                         
-                        <div style="font-weight:600; color:#555; margin-bottom:10px; text-align:center;">🔗 Fault Chain:</div>
-                        <div class="fault-chain-container">
-                            {chain_html}
-                        </div>
+                        # --- 2. Rantai Fault (Nodes & Arrows) ---
+                        n_nodes = len(prop["fault_chain"])
+                        chain_html = ""
+                        for i, fault in enumerate(prop["fault_chain"]):
+                            # Node Kotak Biru
+                            chain_html += f'<div style="background-color: #1E3A5F; color: white; padding: 10px 18px; border-radius: 6px; font-size: 0.9em; font-weight: 600; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">{fault}</div>'
+                            # Panah
+                            if i < n_nodes - 1:
+                                chain_html += '<div style="color: #95a5a6; font-weight: bold; font-size: 1.3em;">→</div>'
                         
-                        <div style="font-weight:600; color:#555; margin-bottom:10px; text-align:center;">🔧 Repair Actions:</div>
-                        <ul class="repair-list">
-                            {actions_html}
-                        </ul>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                        st.markdown(chain_html + "</div>", unsafe_allow_html=True)
+                        
+                        # --- 3. Repair Actions ---
+                        st.markdown('<div style="font-weight: 600; color: #555; margin-bottom: 10px;">🔧 Repair Actions:</div>', unsafe_allow_html=True)
+                        
+                        actions_html = '<div style="background: #fff; padding: 15px 20px; border-radius: 8px; border: 1px solid #eee;">'
+                        for action in prop["repair_actions"]:
+                            clean_action = action.replace("✅ ", "").strip()
+                            # Item List Perbaikan
+                            actions_html += f'<div style="padding: 8px 0; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; font-size: 0.95em; color: #2c3e50;"><span style="margin-right: 12px; font-size: 1.1em;">✅</span>{clean_action}</div>'
+                        
+                        # Tutup tag div dari actions container dan main card container
+                        actions_html += '</div></div>' 
+                        
+                        st.markdown(actions_html, unsafe_allow_html=True)
+            else:
+                st.info("ℹ️ Tidak ada fault propagation map yang dihasilkan. Semua domain dalam kondisi normal.")
 
             st.divider()
             # ========================================================================
