@@ -1411,8 +1411,8 @@ def main():
             if affected_points and affected_points != ["Tidak Ada (Normal)"]:
                 st.warning(f"📍 **Titik Terpengaruh:** {', '.join(affected_points)}")
             
-            # ========================================================================
-            # 🔥 FAULT PROPAGATION MAP DISPLAY (FIXED - NATIVE COMPONENTS)
+                        # ========================================================================
+            # 🔥 FAULT PROPAGATION MAP DISPLAY (CLEAN NATIVE UI)
             # ========================================================================
             st.divider()
             st.subheader("🗺️ Fault Propagation Map untuk Perbaikan")
@@ -1430,58 +1430,73 @@ def main():
                     # Tentukan warna box berdasarkan priority
                     priority = prop["priority"]
                     if priority == "CRITICAL":
-                        box_color = "error"
+                        priority_color = "#c0392b"
+                        priority_box = "error"
                         priority_icon = "🔴"
                     elif priority == "HIGH":
-                        box_color = "warning"
+                        priority_color = "#e67e22"
+                        priority_box = "warning"
                         priority_icon = "🟠"
                     elif priority == "MEDIUM":
-                        box_color = "info"
+                        priority_color = "#f1c40f"
+                        priority_box = "info"
                         priority_icon = "🟡"
                     else:
-                        box_color = "success"
+                        priority_color = "#27ae60"
+                        priority_box = "success"
                         priority_icon = "🟢"
                     
                     # Gunakan Container untuk membuat efek Kartu
                     with st.container():
-                        # Header Kartu
+                        # Header Kartu dengan Columns
                         col_h1, col_h2 = st.columns([3, 1])
                         with col_h1:
                             st.markdown(f"**{priority_icon} Scenario {idx}: {prop['root_cause']}**")
                         with col_h2:
                             st.markdown(f"`Priority: {priority}` | `Timeline: {prop['timeline']}`")
                         
-                        st.markdown("---") # Garis pemisah
+                        st.markdown("---")  # Garis pemisah
                         
-                        # Fault Chain (Menggunakan Columns agar sejajar)
+                        # Fault Chain (Menggunakan Columns agar sejajar horizontal)
                         st.markdown("**🔗 Fault Chain:**")
                         n_nodes = len(prop["fault_chain"])
                         chain_cols = st.columns(n_nodes)
+                        
                         for i, fault in enumerate(prop["fault_chain"]):
                             with chain_cols[i]:
                                 # Tampilkan node fault dengan box sederhana
                                 st.markdown(
                                     f"""
-                                    <div style="background-color:#f0f2f6; padding:10px; border-radius:5px; 
-                                    text-align:center; border:1px solid #ddd; height:100%;">
-                                    <b>{fault}</b>
+                                    <div style="
+                                        background-color: #f0f2f6; 
+                                        padding: 12px; 
+                                        border-radius: 6px; 
+                                        text-align: center; 
+                                        border: 1px solid #ddd; 
+                                        min-height: 60px;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                    ">
+                                    <b style="color: #1E3A5F; font-size: 0.9em;">{fault}</b>
                                     </div>
                                     """, 
                                     unsafe_allow_html=True
                                 )
                                 # Tambah panah jika bukan node terakhir
                                 if i < n_nodes - 1:
-                                    st.markdown("<div style='text-align:center; margin-top:-5px; margin-bottom:5px;'>⬇️</div>", unsafe_allow_html=True)
+                                    st.markdown("<div style='text-align: center; margin: 5px 0;'><b style='color: #999;'>⬇️</b></div>", unsafe_allow_html=True)
                         
-                        st.markdown("---") # Garis pemisah
+                        st.markdown("---")  # Garis pemisah
                         
-                        # Repair Actions
+                        # Repair Actions (Menggunakan bullet points native)
                         st.markdown("**🔧 Repair Actions:**")
                         for action in prop["repair_actions"]:
                             clean_action = action.replace("✅ ", "").strip()
-                            st.markdown(f"✅ {clean_action}")
+                            st.markdown(f"- ✅ {clean_action}")
                     
-                    st.markdown("<br>", unsafe_allow_html=True) # Jarak antar kartu
+                    # Jarak antar kartu
+                    st.markdown("<br>", unsafe_allow_html=True)
             else:
                 st.info("ℹ️ Tidak ada fault propagation map yang dihasilkan. Semua domain dalam kondisi normal.")
 
