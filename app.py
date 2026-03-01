@@ -9,7 +9,62 @@ from datetime import datetime
 # ============================================================================
 # KONFIGURASI GLOBAL - MULTI-DOMAIN EXPERT SYSTEM
 # ============================================================================
-# --- Mechanical Vibration Limits (ISO 10816-3/7) ---
+# --- Pump Standard Thresholds ---
+PUMP_STANDARDS = {
+    "API 610": {
+        "velocity_limits": {
+            "Zone A (Good)": 2.3,      # Lebih ketat 20%
+            "Zone B (Acceptable)": 3.6, # Lebih ketat 20%
+            "Zone C (Unacceptable)": 5.7, # Lebih ketat 20%
+            "Zone D (Danger)": 9.0      # Lebih ketat 20%
+        },
+        "temp_limits": {
+            "normal_max": 70,
+            "elevated_max": 75,         # Lebih ketat
+            "warning_max": 85,          # Lebih ketat
+            "critical_min": 85          # Lebih ketat
+        },
+        "bearing_life_hours": 25000,
+        "severity_multiplier": 1.2,     # Upgrade severity lebih agresif
+        "description": "Heavy-duty untuk Oil & Gas, critical service"
+    },
+    "ISO 13709": {
+        "velocity_limits": {
+            "Zone A (Good)": 2.8,
+            "Zone B (Acceptable)": 4.5,
+            "Zone C (Unacceptable)": 7.1,
+            "Zone D (Danger)": 11.0
+        },
+        "temp_limits": {
+            "normal_max": 70,
+            "elevated_max": 80,
+            "warning_max": 90,
+            "critical_min": 90
+        },
+        "bearing_life_hours": 17500,
+        "severity_multiplier": 1.0,     # Standard
+        "description": "General purpose industrial, balanced reliability"
+    },
+    "ANSI/HI": {
+        "velocity_limits": {
+            "Zone A (Good)": 3.5,      # Lebih longgar 25%
+            "Zone B (Acceptable)": 5.6, # Lebih longgar 25%
+            "Zone C (Unacceptable)": 8.9, # Lebih longgar 25%
+            "Zone D (Danger)": 14.0     # Lebih longgar 25%
+        },
+        "temp_limits": {
+            "normal_max": 75,           # Lebih longgar
+            "elevated_max": 85,         # Lebih longgar
+            "warning_max": 95,          # Lebih longgar
+            "critical_min": 95          # Lebih longgar
+        },
+        "bearing_life_hours": 10000,
+        "severity_multiplier": 0.8,     # Downgrade severity lebih konservatif
+        "description": "Light-duty untuk general service, cost-effective"
+    }
+}
+
+# --- Mechanical Vibration Limits (Default ISO 13709) ---
 ISO_LIMITS_VELOCITY = {
     "Zone A (Good)": 2.8,
     "Zone B (Acceptable)": 4.5,
@@ -23,7 +78,7 @@ ACCEL_BASELINE = {
     "Band3 (5-16kHz)": 0.15
 }
 
-# --- Bearing Temperature Thresholds (IEC 60034-1, API 610, SKF) ---
+# --- Bearing Temperature Thresholds (Default ISO) ---
 BEARING_TEMP_LIMITS = {
     "normal_max": 70,
     "elevated_min": 70,
@@ -74,176 +129,231 @@ ELECTRICAL_LIMITS = {
 }
 
 # ============================================================================
-# FUNGSI REKOMENDASI - MULTI-DOMAIN
+# FUNGSI HELPER - PUMP STANDARD THRESHOLD ADJUSTMENT
 # ============================================================================
-def get_mechanical_recommendation(diagnosis: str, location: str, severity: str = "Medium") -> str:
+def get_standard_thresholds(pump_standard):
+    """
+    Mendapatkan threshold berdasarkan pump standard yang dipilih
+    """
+    standard_config = PUMP_STANDARDS.get(pump_standard, PUMP_STANDARDS["ISO 13709"])
+    return {
+        "velocity_limits": standard_config["velocity_limits"],
+        "temp_limits": standard_config["temp_limits"],
+        "severity_multiplier": standard_config["severity_multiplier"],
+        "bearing_life_hours": standard_config["bearing_life_hours"]
+    }
+
+def adjust_severity_by_standard(severity, pump_standard):
+    """
+    Adjust severity level berdasarkan pump standard
+    API 610: Lebih agresif upgrade severity
+    ANSI: Lebih konservatif
+    """
+    multiplier = PUMP_STANDARDS.get(pump_standard, PUMP_STANDARDS["ISO 13709"])["severity_multiplier"]
+    
+    if pump_standard == "API 610":
+        # Upgrade severity untuk API
+        if severity == "Medium":
+            return "High"
+        elif severity == "Low":
+            return "Medium"
+    elif pump_standard == "ANSI/HI":
+        # Downgrade severity untuk ANSI (kecuali High tetap High)
+        if severity == "Medium":
+            return "Low"
+    
+    return severity
+
+# ============================================================================
+# FUNGSI REKOMENDASI - MULTI-DOMAIN (UPDATED WITH STANDARD)
+# ============================================================================
+def get_mechanical_recommendation(diagnosis: str, location: str, severity: str = "Medium", 
+                                   pump_standard: str = "ISO 13709") -> str:
+    standard_note = f"({pump_standard} Standard)"
+    
     rec_map = {
         "UNBALANCE": (
-            f"🔧 **{location} - Unbalance**\n"
+            f"🔧 **{location} - Unbalance** {standard_note}\n"
             f"• Lakukan single/dual plane balancing pada rotor\n"
             f"• Periksa: material buildup pada impeller, korosi blade, keyway wear\n"
             f"• Target residual unbalance: < 4W/N (g·mm) per ISO 1940-1\n"
             f"• Severity: {severity} → {'Segera jadwalkan balancing' if severity != 'Low' else 'Monitor trend'}"
         ),
         "MISALIGNMENT": (
-            f"🔧 **{location} - Misalignment**\n"
+            f"🔧 **{location} - Misalignment** {standard_note}\n"
             f"• Lakukan laser alignment pump-motor coupling\n"
             f"• Toleransi target: < 0.05 mm offset, < 0.05 mm/m angular\n"
             f"• Periksa: pipe strain, soft foot, coupling wear\n"
             f"• Severity: {severity} → {'Stop & align segera' if severity == 'High' else 'Jadwalkan alignment'}"
         ),
         "LOOSENESS": (
-            f"🔧 **{location} - Mechanical Looseness**\n"
+            f"🔧 **{location} - Mechanical Looseness** {standard_note}\n"
             f"• Torque check semua baut: foundation, bearing housing, baseplate\n"
             f"• Periksa: crack pada struktur, worn dowel pins, grout deterioration\n"
             f"• Gunakan torque wrench sesuai spec manufacturer\n"
             f"• Severity: {severity} → {'Amankan sebelum operasi' if severity == 'High' else 'Jadwalkan tightening'}"
         ),
         "BEARING_EARLY": (
-            f"🔧 **{location} - Early Bearing Fault / Lubrication**\n"
+            f"🔧 **{location} - Early Bearing Fault / Lubrication** {standard_note}\n"
             f"• Cek lubrication: jenis grease, interval, quantity\n"
             f"• Ambil oil sample jika applicable (particle count, viscosity)\n"
             f"• Monitor trend Band 3 mingguan\n"
             f"• Severity: {severity} → {'Ganti grease & monitor ketat' if severity != 'Low' else 'Lanjutkan monitoring'}"
         ),
         "BEARING_DEVELOPED": (
-            f"🔧 **{location} - Developed Bearing Fault**\n"
+            f"🔧 **{location} - Developed Bearing Fault** {standard_note}\n"
             f"• Jadwalkan bearing replacement dalam 1-3 bulan\n"
             f"• Siapkan spare bearing (pastikan clearance & fit sesuai spec)\n"
             f"• Monitor weekly: jika Band 1 naik drastis → percepat jadwal\n"
             f"• Severity: {severity} → {'Plan shutdown segera' if severity == 'High' else 'Siapkan work order'}"
         ),
         "BEARING_SEVERE": (
-            f"🔴 **{location} - Severe Bearing Damage**\n"
+            f"🔴 **{location} - Severe Bearing Damage** {standard_note}\n"
             f"• RISK OF CATASTROPHIC FAILURE - Pertimbangkan immediate shutdown\n"
             f"• Jika continue operasi: monitor hourly, siapkan emergency replacement\n"
             f"• Investigasi root cause: lubrication, installation, loading?\n"
             f"• Severity: HIGH → Action required dalam 24 jam"
         ),
         "Tidak Terdiagnosa": (
-            "⚠️ **Pola Tidak Konsisten**\n"
-            "• Data tidak match dengan rule mekanikal standar\n"
-            "• Kemungkinan: multi-fault interaction, measurement error, atau fault non-rutin\n"
-            "• Rekomendasi: Analisis manual oleh Vibration Analyst Level II+ dengan full spectrum review"
+            f"⚠️ **Pola Tidak Konsisten** {standard_note}\n"
+            f"• Data tidak match dengan rule mekanikal standar\n"
+            f"• Kemungkinan: multi-fault interaction, measurement error, atau fault non-rutin\n"
+            f"• Rekomendasi: Analisis manual oleh Vibration Analyst Level II+ dengan full spectrum review"
         )
     }
     return rec_map.get(diagnosis, rec_map["Tidak Terdiagnosa"])
 
-def get_hydraulic_recommendation(diagnosis: str, fluid_type: str, severity: str = "Medium") -> str:
+def get_hydraulic_recommendation(diagnosis: str, fluid_type: str, severity: str = "Medium",
+                                  pump_standard: str = "ISO 13709") -> str:
+    standard_note = f"({pump_standard} Standard)"
+    
     rec_map = {
         "CAVITATION": (
-            f"💧 **{fluid_type} - Cavitation Risk**\n"
+            f"💧 **{fluid_type} - Cavitation Risk** {standard_note}\n"
             f"• Tingkatkan suction pressure atau turunkan fluid temperature\n"
             f"• Cek: strainer clogged, valve posisi, NPSH margin\n"
             f"• Target NPSH margin: > 0.5 m untuk {fluid_type}\n"
             f"• Severity: {severity} → {'Evaluasi immediate shutdown jika NPSH margin <0.3m' if severity == 'High' else 'Monitor intensif'}"
         ),
         "IMPELLER_WEAR": (
-            f"💧 **{fluid_type} - Impeller Wear / Internal Clearance**\n"
+            f"💧 **{fluid_type} - Impeller Wear / Internal Clearance** {standard_note}\n"
             f"• Jadwalkan inspection impeller & wear ring\n"
             f"• Ukur internal clearance vs spec OEM\n"
             f"• Pertimbangkan: fluid viscosity effect pada slip loss\n"
             f"• Severity: {severity} → {'Siapkan spare impeller' if severity != 'Low' else 'Monitor trend efisiensi'}"
         ),
         "SYSTEM_RESISTANCE_HIGH": (
-            f"💧 **{fluid_type} - System Resistance Higher Than Design**\n"
+            f"💧 **{fluid_type} - System Resistance Higher Than Design** {standard_note}\n"
             f"• Cek valve discharge position, clogged line, atau filter pressure drop\n"
             f"• Verifikasi P&ID vs as-built condition\n"
             f"• Evaluasi: apakah operating point masih dalam acceptable range?\n"
             f"• Severity: {severity} → {'Adjust valve / clean line segera' if severity == 'High' else 'Jadwalkan system review'}"
         ),
         "EFFICIENCY_DROP": (
-            f"💧 **{fluid_type} - Efficiency Degradation**\n"
+            f"💧 **{fluid_type} - Efficiency Degradation** {standard_note}\n"
             f"• Investigasi: mechanical loss vs hydraulic loss vs fluid property mismatch\n"
             f"• Severity: {severity} → {'Plan overhaul dalam 1-3 bulan' if severity != 'Low' else 'Monitor monthly'}"
         ),
         "NORMAL_OPERATION": (
-            f"✅ **{fluid_type} - Normal Operation**\n"
+            f"✅ **{fluid_type} - Normal Operation** {standard_note}\n"
             f"• Semua parameter dalam batas acceptable (±5% dari design)\n"
             f"• Rekam data ini sebagai baseline untuk trend monitoring\n"
             f"• Severity: Low → Continue routine monitoring"
         ),
         "Tidak Terdiagnosa": (
-            "⚠️ **Pola Tidak Konsisten**\n"
-            "• Data hydraulic tidak match dengan rule standar\n"
-            "• Rekomendasi: Verifikasi data lapangan + cross-check dengan electrical/mechanical data"
+            f"⚠️ **Pola Tidak Konsisten** {standard_note}\n"
+            f"• Data hydraulic tidak match dengan rule standar\n"
+            f"• Rekomendasi: Verifikasi data lapangan + cross-check dengan electrical/mechanical data"
         )
     }
     return rec_map.get(diagnosis, rec_map["Tidak Terdiagnosa"])
 
-def get_electrical_recommendation(diagnosis: str, severity: str = "Medium") -> str:
+def get_electrical_recommendation(diagnosis: str, severity: str = "Medium",
+                                   pump_standard: str = "ISO 13709") -> str:
+    standard_note = f"({pump_standard} Standard)"
+    
     rec_map = {
         "UNDER_VOLTAGE": (
-            f"⚡ **Under Voltage Condition**\n"
+            f"⚡ **Under Voltage Condition** {standard_note}\n"
             f"• Cek supply voltage di MCC: possible transformer tap / cable voltage drop\n"
             f"• Verify: motor rated voltage vs actual operating voltage\n"
             f"• Severity: {severity} → {'Coordinate dengan electrical team segera' if severity == 'High' else 'Monitor voltage trend'}"
         ),
         "OVER_VOLTAGE": (
-            f"⚡ **Over Voltage Condition**\n"
+            f"⚡ **Over Voltage Condition** {standard_note}\n"
             f"• Cek supply voltage di MCC: possible transformer tap issue\n"
             f"• Verify: motor rated voltage vs actual operating voltage\n"
             f"• Severity: {severity} → {'Coordinate dengan electrical team segera' if severity == 'High' else 'Monitor voltage trend'}"
         ),
         "VOLTAGE_UNBALANCE": (
-            f"⚡ **Voltage Unbalance Detected**\n"
+            f"⚡ **Voltage Unbalance Detected** {standard_note}\n"
             f"• Cek 3-phase supply balance di source: possible single-phase loading\n"
             f"• Inspect: loose connection, corroded terminal, faulty breaker\n"
             f"• Severity: {severity} → {'Balance supply sebelum mechanical damage' if severity != 'Low' else 'Monitor monthly'}"
         ),
         "CURRENT_UNBALANCE": (
-            f"⚡ **Current Unbalance Detected**\n"
+            f"⚡ **Current Unbalance Detected** {standard_note}\n"
             f"• Investigasi: winding fault, rotor bar issue, atau supply problem\n"
             f"• Cek insulation resistance & winding resistance balance\n"
             f"• Severity: {severity} → {'Schedule electrical inspection' if severity != 'Low' else 'Continue monitoring'}"
         ),
         "OVER_LOAD": (
-            f"⚡ **Over Load Condition**\n"
+            f"⚡ **Over Load Condition** {standard_note}\n"
             f"• Motor operating above FLA rating\n"
             f"• Verify: process load, mechanical binding, or electrical issue\n"
             f"• Severity: {severity} → {'Reduce load immediately' if severity == 'High' else 'Monitor trend closely'}"
         ),
         "UNDER_LOAD": (
-            f"⚡ **Under Load Condition**\n"
+            f"⚡ **Under Load Condition** {standard_note}\n"
             f"• Motor operating below 50% FLA\n"
             f"• Verify: process demand, pump sizing, or system resistance\n"
             f"• Severity: Low → Review operating point vs BEP"
         ),
         "NORMAL_ELECTRICAL": (
-            f"✅ **Normal Electrical Condition**\n"
+            f"✅ **Normal Electrical Condition** {standard_note}\n"
             f"• Voltage balance <2%, current balance <5%, within rated limits\n"
             f"• Severity: Low → Continue routine electrical monitoring"
         ),
         "Tidak Terdiagnosa": (
-            "⚠️ **Pola Tidak Konsisten**\n"
-            "• Data electrical tidak match dengan rule standar\n"
-            "• Rekomendasi: Verifikasi dengan power quality analyzer + cross-check domain lain"
+            f"⚠️ **Pola Tidak Konsisten** {standard_note}\n"
+            f"• Data electrical tidak match dengan rule standar\n"
+            f"• Rekomendasi: Verifikasi dengan power quality analyzer + cross-check domain lain"
         )
     }
     return rec_map.get(diagnosis, rec_map["Tidak Terdiagnosa"])
 
 # ============================================================================
-# FUNGSI TEMPERATURE ANALYSIS
+# FUNGSI TEMPERATURE ANALYSIS (UPDATED WITH STANDARD)
 # ============================================================================
-def get_temperature_status(temp_celsius):
+def get_temperature_status(temp_celsius, pump_standard="ISO 13709"):
+    """
+    Get temperature status based on pump standard thresholds
+    """
+    temp_limits = PUMP_STANDARDS.get(pump_standard, PUMP_STANDARDS["ISO 13709"])["temp_limits"]
+    
     if temp_celsius is None or temp_celsius == 0:
         return "N/A", "⚪", 0
-    if temp_celsius < BEARING_TEMP_LIMITS["normal_max"]:
+    if temp_celsius < temp_limits["normal_max"]:
         return "Normal", "🟢", 0
-    elif temp_celsius < BEARING_TEMP_LIMITS["elevated_max"]:
+    elif temp_celsius < temp_limits["elevated_max"]:
         return "Elevated", "🟡", 0
-    elif temp_celsius < BEARING_TEMP_LIMITS["warning_max"]:
+    elif temp_celsius < temp_limits["warning_max"]:
         return "Warning", "🟠", 1
     else:
         return "Critical", "🔴", 2
 
-def calculate_temperature_confidence_adjustment(temp_dict, diagnosis_consistent):
+def calculate_temperature_confidence_adjustment(temp_dict, diagnosis_consistent, pump_standard="ISO 13709"):
+    """
+    Calculate confidence adjustment based on temperature with standard-specific thresholds
+    """
+    temp_limits = PUMP_STANDARDS.get(pump_standard, PUMP_STANDARDS["ISO 13709"])["temp_limits"]
     adjustment = 0
     notes = []
+    
     for location, temp in temp_dict.items():
         if temp is None or temp == 0:
             continue
-        status, color, sev_level = get_temperature_status(temp)
+        status, color, sev_level = get_temperature_status(temp, pump_standard)
         if status == "Critical":
             if diagnosis_consistent:
                 adjustment += 20
@@ -267,13 +377,13 @@ def calculate_temperature_confidence_adjustment(temp_dict, diagnosis_consistent)
     
     if temp_dict.get("Pump_DE") and temp_dict.get("Pump_NDE"):
         delta_pump = abs(temp_dict["Pump_DE"] - temp_dict["Pump_NDE"])
-        if delta_pump > BEARING_TEMP_LIMITS["delta_threshold"]:
+        if delta_pump > 15:
             adjustment += 5
             notes.append(f"🔍 Pump DE-NDE ΔT: {delta_pump}°C (>15°C) - Localized fault indicated")
     
     if temp_dict.get("Motor_DE") and temp_dict.get("Motor_NDE"):
         delta_motor = abs(temp_dict["Motor_DE"] - temp_dict["Motor_NDE"])
-        if delta_motor > BEARING_TEMP_LIMITS["delta_threshold"]:
+        if delta_motor > 15:
             adjustment += 5
             notes.append(f"🔍 Motor DE-NDE ΔT: {delta_motor}°C (>15°C) - Localized fault indicated")
             
@@ -406,9 +516,18 @@ def diagnose_electrical_condition(electrical_calc, motor_specs):
     return result
 
 # ============================================================================
-# FUNGSI DIAGNOSA - MECHANICAL DOMAIN (MULTI-POINT SUPPORT)
+# FUNGSI DIAGNOSA - MECHANICAL DOMAIN (UPDATED WITH STANDARD)
 # ============================================================================
-def diagnose_mechanical_system(vel_data, bands_data, fft_data_dict, rpm_hz, temp_data):
+def diagnose_mechanical_system(vel_data, bands_data, fft_data_dict, rpm_hz, temp_data, 
+                                pump_standard="ISO 13709"):
+    """
+    Mechanical diagnosis with pump standard-specific thresholds
+    """
+    # Get standard-specific thresholds
+    thresholds = get_standard_thresholds(pump_standard)
+    velocity_limits = thresholds["velocity_limits"]
+    severity_multiplier = thresholds["severity_multiplier"]
+    
     result = {
         "diagnosis": "Normal",
         "confidence": 99,
@@ -417,10 +536,12 @@ def diagnose_mechanical_system(vel_data, bands_data, fft_data_dict, rpm_hz, temp
         "domain": "mechanical",
         "champion_points": [],
         "temperature_notes": [],
-        "point_diagnoses": {}
+        "point_diagnoses": {},
+        "pump_standard": pump_standard
     }
-    limit_warning = ISO_LIMITS_VELOCITY["Zone B (Acceptable)"]
-    limit_danger = ISO_LIMITS_VELOCITY["Zone C (Unacceptable)"]
+    
+    limit_warning = velocity_limits["Zone B (Acceptable)"]
+    limit_danger = velocity_limits["Zone C (Unacceptable)"]
     worst_bearing_severity = "Low"
     bearing_diag = "Normal"
     base3 = ACCEL_BASELINE["Band3 (5-16kHz)"]
@@ -462,7 +583,7 @@ def diagnose_mechanical_system(vel_data, bands_data, fft_data_dict, rpm_hz, temp
             bearing_diag = "BEARING_EARLY"
             problematic_points.append(point)
 
-        # Low Frequency Analysis (Velocity > Limit)
+        # Low Frequency Analysis (Velocity > Limit) - USING STANDARD-SPECIFIC LIMITS
         if vel > limit_warning:
             low_freq_severity = "High" if vel > limit_danger else "Medium"
             parts = point.split()
@@ -498,7 +619,8 @@ def diagnose_mechanical_system(vel_data, bands_data, fft_data_dict, rpm_hz, temp
             
             if low_freq_diag:
                 point_diagnosis["fault_type"] = low_freq_diag
-                point_diagnosis["severity"] = low_freq_severity
+                # Adjust severity based on pump standard
+                point_diagnosis["severity"] = adjust_severity_by_standard(low_freq_severity, pump_standard)
                 problematic_points.append(point)
         
         result["point_diagnoses"][point] = point_diagnosis
@@ -530,7 +652,7 @@ def diagnose_mechanical_system(vel_data, bands_data, fft_data_dict, rpm_hz, temp
     return result
 
 # ============================================================================
-# FUNGSI DIAGNOSA - HYDRAULIC DOMAIN (REVISI - TANPA OBSERVASI)
+# FUNGSI DIAGNOSA - HYDRAULIC DOMAIN
 # ============================================================================
 def diagnose_hydraulic_single_point(hydraulic_calc, design_params, fluid_props, context):
     result = {
@@ -604,14 +726,15 @@ def diagnose_hydraulic_single_point(hydraulic_calc, design_params, fluid_props, 
     return result
 
 # ============================================================================
-# 🔥 FAULT PROPAGATION MAP GENERATOR (LOGIC ONLY)
+# 🔥 FAULT PROPAGATION MAP GENERATOR
 # ============================================================================
-def generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_data=None):
+def generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_data=None, 
+                                    pump_standard="ISO 13709"):
     """
-    Generate fault propagation map data structure. 
-    UI Rendering dilakukan di main() untuk kontrol layout yang lebih baik.
+    Generate fault propagation map data structure with standard-specific recommendations
     """
     propagation_data = []
+    standard_note = f"({pump_standard})"
     
     # === PATTERN 1: Electrical Origin ===
     if elec_result.get("fault_type") == "voltage":
@@ -664,7 +787,8 @@ def generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_da
     
     # === PATTERN 4: Bearing Temperature ===
     if temp_data:
-        high_temps = [k for k, v in temp_data.items() if v and v > 80]
+        temp_limits = PUMP_STANDARDS.get(pump_standard, PUMP_STANDARDS["ISO 13709"])["temp_limits"]
+        high_temps = [k for k, v in temp_data.items() if v and v > temp_limits["warning_min"]]
         if high_temps:
             propagation_data.append({
                 "root_cause": "🌡️ Bearing Overheating",
@@ -675,7 +799,7 @@ def generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_da
                     "Verify bearing clearance",
                     "Plan bearing replacement"
                 ],
-                "priority": "HIGH" if any(temp_data.get(k, 0) > 90 for k in high_temps) else "MEDIUM",
+                "priority": "HIGH" if any(temp_data.get(k, 0) > temp_limits["critical_min"] for k in high_temps) else "MEDIUM",
                 "timeline": "1-7 hari"
             })
     
@@ -717,10 +841,13 @@ def generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_da
     return propagation_data
 
 # ============================================================================
-# CROSS-DOMAIN INTEGRATION LOGIC
+# CROSS-DOMAIN INTEGRATION LOGIC (UPDATED WITH STANDARD)
 # ============================================================================
 def aggregate_cross_domain_diagnosis(mech_result, hyd_result, elec_result,
-                                     shared_context, temp_data=None):
+                                     shared_context, temp_data=None, pump_standard="ISO 13709"):
+    """
+    Cross-domain integration with pump standard-specific adjustments
+    """
     system_result = {
         "diagnosis": "Tidak Ada Korelasi Antar Domain Terdeteksi",
         "confidence": 0,
@@ -729,7 +856,8 @@ def aggregate_cross_domain_diagnosis(mech_result, hyd_result, elec_result,
         "domain_breakdown": {},
         "correlation_notes": [],
         "temperature_notes": [],
-        "affected_points": []
+        "affected_points": [],
+        "pump_standard": pump_standard
     }
     system_result["domain_breakdown"] = {
         "mechanical": mech_result,
@@ -770,13 +898,14 @@ def aggregate_cross_domain_diagnosis(mech_result, hyd_result, elec_result,
     if temp_data:
         temp_adjustment, temp_notes = calculate_temperature_confidence_adjustment(
             temp_data, 
-            diagnosis_consistent=(mech_fault is not None and mech_fault != "normal")
+            diagnosis_consistent=(mech_fault is not None and mech_fault != "normal"),
+            pump_standard=pump_standard
         )
         correlation_bonus += temp_adjustment
         system_result["temperature_notes"] = temp_notes
         
         if temp_data.get("Pump_DE") and temp_data.get("Pump_NDE"):
-            if abs(temp_data["Pump_DE"] - temp_data["Pump_NDE"]) > BEARING_TEMP_LIMITS["delta_threshold"]:
+            if abs(temp_data["Pump_DE"] - temp_data["Pump_NDE"]) > 15:
                 correlated_faults.append(f"Pump DE-NDE ΔT >15°C → Localized fault on DE bearing")
         
         if temp_data.get("Motor_DE") and temp_data.get("Pump_DE"):
@@ -790,15 +919,16 @@ def aggregate_cross_domain_diagnosis(mech_result, hyd_result, elec_result,
         system_result["severity"] = "Medium"
     else:
         system_result["severity"] = "Low"
-        
+    
     if temp_data:
+        temp_limits = PUMP_STANDARDS.get(pump_standard, PUMP_STANDARDS["ISO 13709"])["temp_limits"]
         for temp in temp_data.values():
-            if temp and temp > BEARING_TEMP_LIMITS["critical_min"]:
+            if temp and temp > temp_limits["critical_min"]:
                 system_result["severity"] = "High"
                 correlated_faults.append("⚠️ Critical bearing temperature detected")
                 break
     
-    # SIMPLE AVERAGE CONFIDENCE (KEMBALI KE ORIGINAL - TANPA FUZZY)
+    # SIMPLE AVERAGE CONFIDENCE
     confidences = [r.get("confidence", 0) for r in [mech_result, hyd_result, elec_result] 
                    if r.get("confidence", 0) > 0]
     base_confidence = np.mean(confidences) if confidences else 0
@@ -808,15 +938,17 @@ def aggregate_cross_domain_diagnosis(mech_result, hyd_result, elec_result,
     return system_result
 
 # ============================================================================
-# REPORT GENERATION - CSV
+# REPORT GENERATION - CSV (UPDATED WITH STANDARD)
 # ============================================================================
 def generate_unified_csv_report(machine_id, rpm, timestamp, mech_data, hyd_data,
-                                elec_data, integrated_result, temp_data=None):
+                                elec_data, integrated_result, temp_data=None, 
+                                pump_standard="ISO 13709"):
     lines = []
     lines.append(f"MULTI-DOMAIN PUMP DIAGNOSTIC REPORT - {machine_id.upper()}")
     lines.append(f"Generated: {timestamp}")
+    lines.append(f"Pump Standard: {pump_standard}")
     lines.append(f"RPM: {rpm} | 1x RPM: {rpm/60:.2f} Hz")
-    lines.append(f"Standards: ISO 10816-3/7 (Mech) | API 610 (Hyd) | IEC 60034 (Elec)")
+    lines.append(f"Standards: ISO 10816-3/7 (Mech) | API 610 (Hyd) | IEC 60034 (Elec) | {pump_standard} (Thresholds)")
     lines.append("")
     
     if temp_data:
@@ -840,11 +972,14 @@ def generate_unified_csv_report(machine_id, rpm, timestamp, mech_data, hyd_data,
             b3 = bands.get('Band3', 0)
             point_diag = mech_data.get("point_diagnoses", {}).get(point, {})
             point_fault = point_diag.get("fault_type", "normal")
-            if vel > 7.1:
+            
+            # Use standard-specific limits for status
+            velocity_limits = PUMP_STANDARDS.get(pump_standard, PUMP_STANDARDS["ISO 13709"])["velocity_limits"]
+            if vel > velocity_limits["Zone D (Danger)"]:
                 status = "Zone_D"
-            elif vel > 4.5:
+            elif vel > velocity_limits["Zone C (Unacceptable)"]:
                 status = "Zone_C"
-            elif vel > 2.8:
+            elif vel > velocity_limits["Zone B (Acceptable)"]:
                 status = "Zone_B"
             else:
                 status = "Zone_A"
@@ -882,18 +1017,19 @@ def generate_unified_csv_report(machine_id, rpm, timestamp, mech_data, hyd_data,
     lines.append(f"Overall Diagnosis: {integrated_result.get('diagnosis', 'N/A')}")
     lines.append(f"Overall Confidence: {integrated_result.get('confidence', 0)}%")
     lines.append(f"Overall Severity: {integrated_result.get('severity', 'N/A')}")
+    lines.append(f"Pump Standard: {integrated_result.get('pump_standard', 'N/A')}")
     lines.append(f"Affected Points: {', '.join(integrated_result.get('affected_points', []))}")
     lines.append(f"Correlation Notes: {'; '.join(integrated_result.get('correlation_notes', []))}")
     if integrated_result.get("temperature_notes"):
         lines.append(f"Temperature Notes: {'; '.join(integrated_result['temperature_notes'])}")
     lines.append("")
     
-    # FAULT PROPAGATION MAP (NEW - ADDED TO CSV)
+    # FAULT PROPAGATION MAP
     lines.append("=== FAULT PROPAGATION MAP FOR REPAIR ===")
     mech_result = integrated_result.get("domain_breakdown", {}).get("mechanical", {})
     hyd_result = integrated_result.get("domain_breakdown", {}).get("hydraulic", {})
     elec_result = integrated_result.get("domain_breakdown", {}).get("electrical", {})
-    propagation_map = generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_data)
+    propagation_map = generate_fault_propagation_map(mech_result, hyd_result, elec_result, temp_data, pump_standard)
     for idx, prop in enumerate(propagation_map, 1):
         lines.append(f"Scenario {idx}: {prop['root_cause']}")
         lines.append(f"Priority: {prop['priority']} | Timeline: {prop['timeline']}")
@@ -906,7 +1042,7 @@ def generate_unified_csv_report(machine_id, rpm, timestamp, mech_data, hyd_data,
     return "\n".join(lines)
 
 # ============================================================================
-# STREAMLIT UI - MAIN APPLICATION
+# STREAMLIT UI - MAIN APPLICATION (UPDATED WITH PUMP STANDARD SELECTOR)
 # ============================================================================
 def main():
     st.set_page_config(
@@ -921,6 +1057,7 @@ def main():
             "machine_id": "P-101",
             "rpm": 2950,
             "service_criticality": "Essential (Utility)",
+            "pump_standard": "ISO 13709",  # NEW: Default pump standard
             "fluid_type": "Diesel / Solar",
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
@@ -939,6 +1076,24 @@ def main():
         machine_id = st.text_input("Machine ID / Tag", value=st.session_state.shared_context["machine_id"])
         rpm = st.number_input("Operating RPM", min_value=600, max_value=3600, 
                               value=st.session_state.shared_context["rpm"], step=10)
+        
+        # NEW: Pump Standard Selector
+        pump_standard = st.selectbox("🏭 Pump Standard", 
+                                      list(PUMP_STANDARDS.keys()),
+                                      index=list(PUMP_STANDARDS.keys()).index(
+                                          st.session_state.shared_context["pump_standard"]),
+                                      help="Pilih standar pump untuk menyesuaikan threshold diagnosa")
+        
+        # Display standard info
+        standard_info = PUMP_STANDARDS[pump_standard]
+        st.info(f"""
+        **{pump_standard}**
+        - {standard_info['description']}
+        - Bearing Life: {standard_info['bearing_life_hours']:,} hours
+        - Velocity Limits: Zone B = {standard_info['velocity_limits']['Zone B (Acceptable)']} mm/s
+        - Temp Critical: ≥{standard_info['temp_limits']['critical_min']}°C
+        """)
+        
         service_type = st.selectbox("Service Criticality", 
                                     ["Critical (Process)", "Essential (Utility)", "Standby"],
                                     index=["Critical (Process)", "Essential (Utility)", "Standby"].index(
@@ -952,6 +1107,7 @@ def main():
             "machine_id": machine_id,
             "rpm": rpm,
             "service_criticality": service_type,
+            "pump_standard": pump_standard,  # NEW: Save pump standard
             "fluid_type": fluid_type
         })
         
@@ -993,54 +1149,78 @@ def main():
         "🔧 Mechanical", "💧 Hydraulic", "⚡ Electrical", "🔗 Integrated Summary"
     ])
 
-    # TAB 1: MECHANICAL
+    # TAB 1: MECHANICAL (UPDATED WITH PUMP STANDARD)
     with tab_mech:
         st.header("🔧 Mechanical Vibration Analysis")
-        st.caption("ISO 10816-3/7 | Centrifugal Pump + Electric Motor")
+        st.caption(f"ISO 10816-3/7 | {pump_standard} Thresholds | Centrifugal Pump + Electric Motor")
+        
+        # Display standard-specific velocity limits
+        velocity_limits = PUMP_STANDARDS[pump_standard]["velocity_limits"]
+        st.info(f"""
+        **📊 {pump_standard} Velocity Thresholds:**
+        - Zone A (Good): < {velocity_limits['Zone A (Good)']} mm/s
+        - Zone B (Acceptable): {velocity_limits['Zone A (Good)']} - {velocity_limits['Zone B (Acceptable)']} mm/s
+        - Zone C (Unacceptable): {velocity_limits['Zone B (Acceptable)']} - {velocity_limits['Zone C (Unacceptable)']} mm/s
+        - Zone D (Danger): > {velocity_limits['Zone D (Danger)']} mm/s
+        """)
         
         st.subheader("🌡️ Bearing Temperature (4 Points)")
         temp_cols = st.columns(4)
         temp_data = {}
+        temp_limits = PUMP_STANDARDS[pump_standard]["temp_limits"]
+        
         with temp_cols[0]:
             pump_de_temp = st.number_input("Pump DE (°C)", min_value=0, max_value=150, 
                                            value=65, step=1, key="temp_pump_de")
             temp_data["Pump_DE"] = pump_de_temp
-            if pump_de_temp > BEARING_TEMP_LIMITS["warning_min"]:
-                st.error(f"🔴 {pump_de_temp}°C - Warning")
-            elif pump_de_temp > BEARING_TEMP_LIMITS["elevated_min"]:
-                st.warning(f"🟡 {pump_de_temp}°C - Elevated")
+            status, color, _ = get_temperature_status(pump_de_temp, pump_standard)
+            if status == "Critical":
+                st.error(f"🔴 {pump_de_temp}°C - {status}")
+            elif status == "Warning":
+                st.warning(f"🟠 {pump_de_temp}°C - {status}")
+            elif status == "Elevated":
+                st.warning(f"🟡 {pump_de_temp}°C - {status}")
             else:
-                st.success(f"🟢 {pump_de_temp}°C - Normal")
+                st.success(f"🟢 {pump_de_temp}°C - {status}")
         with temp_cols[1]:
             pump_nde_temp = st.number_input("Pump NDE (°C)", min_value=0, max_value=150, 
                                             value=63, step=1, key="temp_pump_nde")
             temp_data["Pump_NDE"] = pump_nde_temp
-            if pump_nde_temp > BEARING_TEMP_LIMITS["warning_min"]:
-                st.error(f"🔴 {pump_nde_temp}°C - Warning")
-            elif pump_nde_temp > BEARING_TEMP_LIMITS["elevated_min"]:
-                st.warning(f"🟡 {pump_nde_temp}°C - Elevated")
+            status, color, _ = get_temperature_status(pump_nde_temp, pump_standard)
+            if status == "Critical":
+                st.error(f"🔴 {pump_nde_temp}°C - {status}")
+            elif status == "Warning":
+                st.warning(f"🟠 {pump_nde_temp}°C - {status}")
+            elif status == "Elevated":
+                st.warning(f"🟡 {pump_nde_temp}°C - {status}")
             else:
-                st.success(f"🟢 {pump_nde_temp}°C - Normal")
+                st.success(f"🟢 {pump_nde_temp}°C - {status}")
         with temp_cols[2]:
             motor_de_temp = st.number_input("Motor DE (°C)", min_value=0, max_value=150, 
                                             value=68, step=1, key="temp_motor_de")
             temp_data["Motor_DE"] = motor_de_temp
-            if motor_de_temp > BEARING_TEMP_LIMITS["warning_min"]:
-                st.error(f"🔴 {motor_de_temp}°C - Warning")
-            elif motor_de_temp > BEARING_TEMP_LIMITS["elevated_min"]:
-                st.warning(f"🟡 {motor_de_temp}°C - Elevated")
+            status, color, _ = get_temperature_status(motor_de_temp, pump_standard)
+            if status == "Critical":
+                st.error(f"🔴 {motor_de_temp}°C - {status}")
+            elif status == "Warning":
+                st.warning(f"🟠 {motor_de_temp}°C - {status}")
+            elif status == "Elevated":
+                st.warning(f"🟡 {motor_de_temp}°C - {status}")
             else:
-                st.success(f"🟢 {motor_de_temp}°C - Normal")
+                st.success(f"🟢 {motor_de_temp}°C - {status}")
         with temp_cols[3]:
             motor_nde_temp = st.number_input("Motor NDE (°C)", min_value=0, max_value=150, 
                                              value=66, step=1, key="temp_motor_nde")
             temp_data["Motor_NDE"] = motor_nde_temp
-            if motor_nde_temp > BEARING_TEMP_LIMITS["warning_min"]:
-                st.error(f"🔴 {motor_nde_temp}°C - Warning")
-            elif motor_nde_temp > BEARING_TEMP_LIMITS["elevated_min"]:
-                st.warning(f"🟡 {motor_nde_temp}°C - Elevated")
+            status, color, _ = get_temperature_status(motor_nde_temp, pump_standard)
+            if status == "Critical":
+                st.error(f"🔴 {motor_nde_temp}°C - {status}")
+            elif status == "Warning":
+                st.warning(f"🟠 {motor_nde_temp}°C - {status}")
+            elif status == "Elevated":
+                st.warning(f"🟡 {motor_nde_temp}°C - {status}")
             else:
-                st.success(f"🟢 {motor_nde_temp}°C - Normal")
+                st.success(f"🟢 {motor_nde_temp}°C - {status}")
         
         st.divider()
         st.subheader("📊 Input Data 12 Titik Pengukuran")
@@ -1063,11 +1243,11 @@ def main():
                     b2 = st.number_input("Band 2", min_value=0.0, value=0.15, step=0.05, key=f"m_b2_{point}")
                     b3 = st.number_input("Band 3", min_value=0.0, value=0.1, step=0.05, key=f"m_b3_{point}")
                     bands_inputs[point] = {"Band1": b1, "Band2": b2, "Band3": b3}
-                    if overall > ISO_LIMITS_VELOCITY["Zone B (Acceptable)"]:
-                        st.error(f"⚠️ {overall} mm/s (High)")
+                    if overall > velocity_limits["Zone B (Acceptable)"]:
+                        st.error(f"⚠️ {overall} mm/s (High for {pump_standard})")
         
         problematic_points = [p for p, v in input_data.items() 
-                              if v > ISO_LIMITS_VELOCITY["Zone B (Acceptable)"]]
+                              if v > velocity_limits["Zone B (Acceptable)"]]
         if problematic_points:
             st.markdown(f"""
             <div style="background-color:#ffeeba; padding:15px; border-radius:8px; border-left:5px solid #ffc107; margin-top:20px;">
@@ -1103,7 +1283,7 @@ def main():
         if st.button("🔍 Jalankan Mechanical Analysis", type="primary", key="run_mech"):
             with st.spinner("Menganalisis pola getaran..."):
                 mech_system = diagnose_mechanical_system(
-                    input_data, bands_inputs, fft_data_dict, rpm/60, temp_data
+                    input_data, bands_inputs, fft_data_dict, rpm/60, temp_data, pump_standard
                 )
                 st.session_state.mech_result = mech_system
                 st.session_state.mech_data = {
@@ -1113,6 +1293,7 @@ def main():
                     "champion_points": mech_system["champion_points"]
                 }
                 st.session_state.temp_data = temp_data
+                st.session_state.pump_standard = pump_standard  # Save standard
                 st.success(f"✅ Analisis Selesai: {mech_system['diagnosis']}")
         
         if "mech_result" in st.session_state:
@@ -1132,7 +1313,8 @@ def main():
                 st.metric("Severity", {"Low":"🟢","Medium":"🟠","High":"🔴"}.get(result["severity"],"⚪"))
             
             if result["diagnosis"] != "Normal":
-                st.info(get_mechanical_recommendation(result["diagnosis"], points_display, result["severity"]))
+                st.info(get_mechanical_recommendation(result["diagnosis"], points_display, 
+                                                       result["severity"], pump_standard))
             
             st.subheader("📋 Diagnosis Per Titik")
             point_df_data = []
@@ -1262,7 +1444,8 @@ def main():
             with col_c:
                 st.metric("Domain", "Hydraulic")
             if result["diagnosis"] != "NORMAL_OPERATION":
-                st.info(get_hydraulic_recommendation(result["diagnosis"], fluid_type, result["severity"]))
+                st.info(get_hydraulic_recommendation(result["diagnosis"], fluid_type, 
+                                                      result["severity"], pump_standard))
 
     # TAB 3: ELECTRICAL
     with tab_elec:
@@ -1327,12 +1510,13 @@ def main():
             with col_c:
                 st.metric("Domain", "Electrical")
             if result["diagnosis"] != "NORMAL_ELECTRICAL":
-                st.info(get_electrical_recommendation(result["diagnosis"], result["severity"]))
+                st.info(get_electrical_recommendation(result["diagnosis"], result["severity"], 
+                                                       pump_standard))
 
     # TAB 4: INTEGRATED
     with tab_integrated:
         st.header("🔗 Integrated Diagnostic Summary")
-        st.caption("Cross-Domain Correlation | Temperature Analysis | Multi-Point Support")
+        st.caption(f"Cross-Domain Correlation | {pump_standard} Thresholds | Temperature Analysis")
         
         analyses_complete = all([
             "mech_result" in st.session_state,
@@ -1361,12 +1545,14 @@ def main():
         else:
             with st.spinner("Mengintegrasikan hasil tiga domain..."):
                 temp_data = st.session_state.get("temp_data", None)
+                pump_standard = st.session_state.get("pump_standard", "ISO 13709")
                 integrated_result = aggregate_cross_domain_diagnosis(
                     st.session_state.mech_result,
                     st.session_state.hyd_result,
                     st.session_state.elec_result,
                     st.session_state.shared_context,
-                    temp_data
+                    temp_data,
+                    pump_standard
                 )
                 st.session_state.integrated_result = integrated_result
             
@@ -1379,7 +1565,10 @@ def main():
                     <p style="margin:0; font-size:1.1em; font-weight:600; color:#2c3e50;">
                     {integrated_result["diagnosis"]}
                     </p>
-                </div>
+                    <p style="margin:5px 0 0 0; font-size:0.9em; color:#666;">
+                    Standard: <b>{pump_standard}</b>
+                    </p>
+                    </div>
                 """, unsafe_allow_html=True)
             with col2:
                 severity_config = {
@@ -1412,7 +1601,7 @@ def main():
                 st.warning(f"📍 **Titik Terpengaruh:** {', '.join(affected_points)}")
             
             # ========================================================================
-            # 🔥 FAULT PROPAGATION MAP DISPLAY (CLEAN NATIVE UI)
+            # 🔥 FAULT PROPAGATION MAP DISPLAY
             # ========================================================================
             st.divider()
             st.subheader("🗺️ Fault Propagation Map untuk Perbaikan")
@@ -1422,64 +1611,159 @@ def main():
                 st.session_state.mech_result,
                 st.session_state.hyd_result,
                 st.session_state.elec_result,
-                temp_data
+                temp_data,
+                pump_standard
             )
             
-            if propagation_map:
-                for idx, prop in enumerate(propagation_map, 1):
-                    # Tentukan warna indikator berdasarkan priority
-                    priority = prop["priority"]
-                    if priority == "CRITICAL":
-                        priority_icon = "🔴"
-                        border_color = "#c0392b"
-                    elif priority == "HIGH":
-                        priority_icon = "🟠"
-                        border_color = "#e67e22"
-                    elif priority == "MEDIUM":
-                        priority_icon = "🟡"
-                        border_color = "#f1c40f"
-                    else:
-                        priority_icon = "🟢"
-                        border_color = "#27ae60"
-                    
-                    # Gunakan Container dengan custom HTML untuk layout yang lebih solid
-                    with st.container():
-                        st.markdown(f"""
-                        <div style="border-left: 5px solid {border_color}; padding-left: 15px; margin-bottom: 20px;">
-                            <h4 style="margin-bottom: 5px;">{priority_icon} Scenario {idx}: {prop['root_cause']}</h4>
-                            <p style="color: #555; margin-top: 0px; font-size: 0.9em;">
-                                <b>Priority:</b> {priority} &nbsp;|&nbsp; <b>Timeline:</b> {prop['timeline']}
-                            </p>
-                        """, unsafe_allow_html=True)
-                        
-                        st.markdown("**🔗 Fault Chain:**")
-                        
-                        # Menggunakan Flexbox HTML agar kotak dan panah sejajar horizontal dengan rapi
-                        n_nodes = len(prop["fault_chain"])
-                        chain_html = '<div style="display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">'
-                        for i, fault in enumerate(prop["fault_chain"]):
-                            chain_html += f'''
-                            <div style="background-color: #f8f9fa; padding: 10px 15px; border-radius: 6px; border: 1px solid #dee2e6; color: #1E3A5F; font-size: 0.9em; font-weight: 500;">
-                                {fault}
+            # CSS Styles for Better Alignment (Centered & Professional)
+            st.markdown("""
+            <style>
+            .prop-container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                width: 100%;
+            }
+            .prop-card {
+                background-color: #ffffff;
+                padding: 25px;
+                border-radius: 12px;
+                border-left: 8px solid #ccc;
+                margin: 20px 0;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                width: 90%;
+                max-width: 1000px;
+            }
+            .prop-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+                flex-wrap: wrap;
+                border-bottom: 1px solid #eee;
+                padding-bottom: 15px;
+            }
+            .prop-title {
+                font-size: 1.2em;
+                font-weight: 700;
+                color: #1E3A5F;
+                margin: 0;
+            }
+            .prop-badges {
+                display: flex;
+                gap: 10px;
+            }
+            .badge {
+                padding: 6px 12px;
+                border-radius: 20px;
+                font-size: 0.85em;
+                font-weight: 600;
+                color: white;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .fault-chain-container {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 15px;
+                margin: 20px 0;
+                background: #f8f9fa;
+                padding: 20px;
+                border-radius: 8px;
+                border: 1px solid #e0e0e0;
+            }
+            .fault-node {
+                background-color: #1E3A5F;
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                text-align: center;
+                font-size: 0.95em;
+                font-weight: 600;
+                min-width: 140px;
+                flex: 1 1 140px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+            .fault-arrow {
+                color: #95a5a6;
+                font-weight: bold;
+                font-size: 1.5em;
+                flex: 0 0 auto;
+            }
+            .repair-list {
+                list-style: none;
+                padding: 0;
+                margin: 20px 0 0 0;
+                background: #f8f9fa;
+                padding: 20px;
+                border-radius: 8px;
+                border: 1px solid #e0e0e0;
+            }
+            .repair-item {
+                padding: 10px 0;
+                border-bottom: 1px solid #e0e0e0;
+                font-size: 1em;
+                color: #2c3e50;
+                display: flex;
+                align-items: center;
+            }
+            .repair-item:last-child {
+                border-bottom: none;
+            }
+            .repair-icon {
+                margin-right: 12px;
+                font-size: 1.2em;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Render Propagation Map with Centered Layout
+            for idx, prop in enumerate(propagation_map, 1):
+                priority_colors = {
+                    "CRITICAL": ("🔴", "#c0392b"),
+                    "HIGH": ("🟠", "#e67e22"),
+                    "MEDIUM": ("🟡", "#f1c40f"),
+                    "LOW": ("🟢", "#27ae60")
+                }
+                priority_icon, priority_color = priority_colors.get(prop["priority"], ("⚪", "#95a5a6"))
+                
+                # Build Fault Chain HTML (Centered)
+                chain_html = ""
+                for i, fault in enumerate(prop["fault_chain"]):
+                    chain_html += f'<div class="fault-node">{fault}</div>'
+                    if i < len(prop["fault_chain"]) - 1:
+                        chain_html += '<div class="fault-arrow">→</div>'
+                
+                # Build Repair Actions HTML
+                actions_html = ""
+                for action in prop["repair_actions"]:
+                    clean_action = action.replace("✅ ", "").strip()
+                    actions_html += f'<li class="repair-item"><span class="repair-icon">✅</span>{clean_action}</li>'
+                
+                st.markdown(f"""
+                <div class="prop-container">
+                    <div class="prop-card" style="border-left-color: {priority_color};">
+                        <div class="prop-header">
+                            <h4 class="prop-title">{priority_icon} Scenario {idx}: {prop["root_cause"]}</h4>
+                            <div class="prop-badges">
+                                <span class="badge" style="background-color: {priority_color};">Priority: {prop["priority"]}</span>
+                                <span class="badge" style="background-color: #1E3A5F;">Timeline: {prop["timeline"]}</span>
                             </div>
-                            '''
-                            # Tambahkan panah arah kanan (➡️) jika bukan node terakhir
-                            if i < n_nodes - 1:
-                                chain_html += '''<div style="color: #adb5bd; font-size: 1.2em;">➡️</div>'''
-                        chain_html += '</div>'
-                        st.markdown(chain_html, unsafe_allow_html=True)
+                        </div>
                         
-                        st.markdown("**🔧 Repair Actions:**")
-                        # Hapus bullet point default Streamlit ("-") agar checkmark terlihat lebih bersih
-                        for action in prop["repair_actions"]:
-                            clean_action = action.replace("✅ ", "").strip()
-                            st.markdown(f"✅ {clean_action}")
-                            
-                        # Tutup tag div dari container utama
-                        st.markdown("</div>", unsafe_allow_html=True)
-                        st.markdown("<br>", unsafe_allow_html=True)
-            else:
-                st.info("ℹ️ Tidak ada fault propagation map yang dihasilkan. Semua domain dalam kondisi normal.")
+                        <div style="font-weight:600; color:#555; margin-bottom:10px; text-align:center;">🔗 Fault Chain:</div>
+                        <div class="fault-chain-container">
+                            {chain_html}
+                        </div>
+                        
+                        <div style="font-weight:600; color:#555; margin-bottom:10px; text-align:center;">🔧 Repair Actions:</div>
+                        <ul class="repair-list">
+                            {actions_html}
+                        </ul>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
             st.divider()
             # ========================================================================
@@ -1493,7 +1777,8 @@ def main():
                     st.session_state.get("hyd_data", {}),
                     st.session_state.get("elec_data", {}),
                     integrated_result,
-                    temp_data
+                    temp_data,
+                    pump_standard
                 )
                 st.download_button(
                     label="📥 Download CSV Report",
@@ -1505,8 +1790,9 @@ def main():
                 st.success("✅ Report generated successfully!")
             
             st.divider()
-            st.caption("""
+            st.caption(f"""
             **Standar Acuan**: ISO 10816-3/7 | ISO 13373-1 | API 610 | IEC 60034 | API 670
+            **Pump Standard**: {pump_standard} | **Threshold Adjustment**: Active
             **Algoritma**: Hybrid rule-based dengan cross-domain correlation + confidence scoring
             ⚠️ Decision Support System - Verifikasi oleh personnel kompeten untuk keputusan kritis
             🏭 Pertamina Patra Niaga - Asset Integrity Management
